@@ -22,6 +22,17 @@ class BleAdvertiser {
     await _peripheral.stop();
   }
 
+  /// Start advertising with a pre-built signed payload (Phase 2+).
+  /// Used by [StudentBroadcastScreen] to send HMAC-signed manufacturer data.
+  Future<void> startAdvertisingWithPayload(Uint8List payload) async {
+    final data = AdvertiseData(
+      serviceUuid: BleConstants.serviceUuid,
+      manufacturerId: BleConstants.manufacturerId,
+      manufacturerData: payload,
+    );
+    await _peripheral.start(advertiseData: data);
+  }
+
   Future<bool> isAdvertising() async {
     return await _peripheral.isAdvertising;
   }

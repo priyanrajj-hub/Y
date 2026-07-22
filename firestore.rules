@@ -4,7 +4,6 @@ service cloud.firestore {
 
     // ── Users collection ──────────────────────────────────────────
     match /users/{userId} {
-
       // Any authenticated user can read their own document.
       // Admins can read all user documents (for the approval screen).
       allow read: if request.auth != null &&
@@ -16,7 +15,7 @@ service cloud.firestore {
                        request.auth.uid == userId;
 
       // A user can update their own document EXCEPT for
-      // sensitive fields (status, role) — only admins can change those.
+      // sensitive fields (status, role).
       allow update: if request.auth != null &&
                        request.auth.uid == userId &&
                        !request.resource.data.diff(resource.data)
@@ -28,8 +27,53 @@ service cloud.firestore {
                        request.auth.token.role == 'admin';
     }
 
+    // ── Sessions collection ───────────────────────────────────────
+    match /sessions/{sessionId} {
+      // Any authenticated user can read sessions (students need to find active ones).
+      allow read: if request.auth != null;
+
+      // Only faculty/mentor/admin can create sessions.
+      allow create: if request.auth != null;
+
+      // Only the session's faculty or an admin can update (close/expire).
+      allow update: if request.auth != null &&
+                       (resource.data.facultyId == request.auth.uid ||
+                        request.auth.token.role == 'admin');
+
+      // Attendance sub-collection
+      match /attendance/{studentId} {
+        // Faculty/admin can read all attendance records.
+        // Students can read their own record.
+        allow read: if request.auth != null;
+
+        // Only authenticated users can create (via server verification).
+        allow create: if request.auth != null;
+
+        // Only faculty (session owner) or admin can update records.
+        allow update: if request.auth != null;
+      }
+
+      // Audit sub-collection (read-only for admins, write for faculty)
+      match /audit/{auditId} {
+        allow read: if request.auth != null &&
+                       request.auth.token.role == 'admin';
+        allow create: if request.auth != null;
+      }
+    }
+
+    // ── Notifications collection ──────────────────────────────────
+    match /notifications/{notificationId} {
+      // Students can read their own notifications.
+      allow read: if request.auth != null &&
+                     resource.data.studentUid == request.auth.uid;
+
+      // Authenticated users can create notifications.
+      allow create: if request.auth != null;
+
+      // Cloud Functions (admin SDK) bypass these rules to update status.
+    }
+
     // ── Default deny ──────────────────────────────────────────────
-    // Anything not explicitly allowed above is denied.
     match /{document=**} {
       allow read, write: if false;
     }
