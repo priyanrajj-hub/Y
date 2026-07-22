@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Users collection ──────────────────────────────────────────
+    match /users/{userId} {
+
+      // Any authenticated user can read their own document.
+      // Admins can read all user documents (for the approval screen).
+      allow read: if request.auth != null &&
+                     (request.auth.uid == userId ||
+                      request.auth.token.role == 'admin');
+
+      // A user can create their own document (at registration).
+      allow create: if request.auth != null &&
+                       request.auth.uid == userId;
+
+      // A user can update their own document EXCEPT for
+      // sensitive fields (status, role) — only admins can change those.
+      allow update: if request.auth != null &&
+                       request.auth.uid == userId &&
+                       !request.resource.data.diff(resource.data)
+                           .affectedKeys()
+                           .hasAny(['status', 'role']);
+
+      // Admins can update any user document (approve/reject, set role).
+      allow update: if request.auth != null &&
+                       request.auth.token.role == 'admin';
+    }
+
+    // ── Default deny ──────────────────────────────────────────────
+    // Anything not explicitly allowed above is denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
